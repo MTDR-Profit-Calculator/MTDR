@@ -75,6 +75,7 @@
             const [currentTax, setCurrentTax] = useState(10);
             const [mainAmt, setMainAmt] = useState("");
             const [duration, setDuration] = useState("");
+            const [editableRate, setEditableRate] = useState(""); // New state for editable rate
             const [isAdminOpen, setIsAdminOpen] = useState(false);
             const [isAboutOpen, setIsAboutOpen] = useState(false);
             const [adminTab, setAdminTab] = useState('tabAddr');
@@ -85,7 +86,6 @@
             const [itdGlobalRate, setItdGlobalRate] = useState("");
             const [newIAmt, setNewIAmt] = useState("");
             const [newIYr, setNewIYr] = useState("2");
-            const [newITDYear, setNewITDYear] = useState("");
             const [newIProfit, setNewIProfit] = useState("");
             const [oldPass, setOldPass] = useState("");
             const [newPass, setNewPass] = useState("");
@@ -124,6 +124,17 @@
                 dbRef.on('value', handleValue);
                 return () => dbRef.off('value', handleValue);
             }, []);
+
+            // Sync editableRate with DB defaults when duration or mode changes
+            useEffect(() => {
+                if (currentMode === 'MTDR') {
+                    const mtdrData = db.mtdr || {};
+                    const defaultRate = mtdrData[duration] || 0;
+                    setEditableRate(defaultRate.toString());
+                } else {
+                    setEditableRate((db.itdRate || 0).toString());
+                }
+            }, [duration, currentMode, db.mtdr, db.itdRate]);
 
             useEffect(() => {
                 if (currentMode === 'MTDR') {
@@ -174,13 +185,12 @@
 
             const calculate = () => {
                 const amtValue = parseFloat(mainAmt.replace(/,/g, '')) || 0;
+                const rateVal = parseFloat(editableRate) || 0; // Use editableRate instead of db value directly
                 if (amtValue === 0) return { details: null, total: "0.00", rate: "0.00%" };
 
                 if (currentMode === 'MTDR') {
-                    const mtdrData = db.mtdr || {};
-                    const rate = mtdrData[duration] || 0;
                     const durInt = parseInt(duration) || 0;
-                    const netMonProf = ((amtValue * (rate / 100)) / 12) * ((100 - currentTax) / 100);
+                    const netMonProf = ((amtValue * (rateVal / 100)) / 12) * ((100 - currentTax) / 100);
                     const totalProfit = durInt > 0 ? netMonProf * durInt : 0;
                     return {
                         details: (
@@ -190,7 +200,7 @@
                             </div>
                         ),
                         total: totalProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 }),
-                        rate: rate.toFixed(2) + "%"
+                        rate: rateVal.toFixed(2) + "%"
                     };
                 } else {
                     const itdData = db.itd || [];
@@ -213,7 +223,7 @@
                             </React.Fragment>
                         ),
                         total: (totalSaved + profit).toLocaleString('en-IN'),
-                        rate: (db.itdRate || 0).toFixed(2) + "%"
+                        rate: rateVal.toFixed(2) + "%"
                     };
                 }
             };
@@ -294,7 +304,14 @@
 
                             <div className="mb-3">
                                 <label className="block font-semibold mb-1 text-[#1e3a5f] text-[0.85rem]">Profit Rate (%)</label>
-                                <input type="text" value={rate} readOnly className="w-full p-2.5 border-2 border-[#e2e8f0] rounded-[10px] bg-[#f8f9fa] outline-none" />
+                                {/* Made this input editable as per user request */}
+                                <input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={editableRate} 
+                                    onChange={(e) => setEditableRate(e.target.value)}
+                                    className="w-full p-2.5 border-2 border-[#e2e8f0] rounded-[10px] outline-none focus:border-[#006837]" 
+                                />
                             </div>
 
                             {currentMode === 'MTDR' && (
